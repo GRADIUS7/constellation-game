@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<title>宇宙星座計画 — Real Constellation Prototype</title>
+<style>
+:root{
+  --bg:#020617;--panel:rgba(3,8,24,.82);--line:rgba(255,255,255,.14);
+  --text:#f8fbff;--sub:#a9b7ca;--accent:#7dd3fc;--ok:#86efac;--gold:#fde68a
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+#game{position:fixed;inset:0}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none}
+.card{pointer-events:auto;background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+.top{position:absolute;left:10px;right:10px;top:max(8px,env(safe-area-inset-top));display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+#mission{padding:10px 12px;max-width:72vw}
+#mission b{font-size:14px}
+#mission .small{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.35}
+#score{padding:9px 11px;min-width:78px;text-align:center;font-weight:900}
+#score small{display:block;color:var(--sub);font-size:9px}
+#targetOverlay{position:absolute;inset:0;pointer-events:none;display:none}
+#targetSvg{width:100%;height:100%}
+.bottom{position:absolute;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));display:grid;gap:7px;pointer-events:none}
+#selected{padding:9px 11px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+#selected .name{font-weight:900;font-size:13px}
+#selected .detail{font-size:10px;color:var(--sub);margin-top:2px;line-height:1.35}
+#controls{padding:8px;display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+#actions{padding:8px;display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:6px}
+button{pointer-events:auto;border:0;border-radius:11px;padding:10px 6px;min-height:42px;font-weight:850;
+font-size:12px;color:#08111c;background:#eef9ff}
+button.secondary{color:var(--text);background:rgba(255,255,255,.10);border:1px solid var(--line)}
+button.accent{background:var(--accent)}
+button.ok{background:var(--ok)}
+button:active{transform:scale(.97)}
+#toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+background:rgba(2,6,23,.94);border:1px solid var(--line);border-radius:18px;padding:16px 20px;
+font-weight:900;text-align:center;opacity:0;transition:.22s;pointer-events:none;max-width:88vw;white-space:pre-line}
+#toast.show{opacity:1}
+#intro{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;overflow:hidden;
+background:radial-gradient(circle at 50% 80%,#133861 0,#07152a 28%,#020617 64%)}
+#intro .stars{position:absolute;inset:0;background-image:radial-gradient(#fff 1px,transparent 1px);background-size:41px 41px;opacity:.32}
+#introContent{position:relative;text-align:center;padding:24px;max-width:580px}
+#rocket{font-size:78px;display:block;margin:8px auto;filter:drop-shadow(0 10px 24px rgba(125,211,252,.35));
+transition:transform 1.9s cubic-bezier(.2,.7,.2,1),opacity .4s 1.55s}
+#intro.launch #rocket{transform:translateY(-115vh) scale(.65);opacity:0}
+#intro.launch #introContent{animation:fade .45s 1.55s forwards}
+@keyframes fade{to{opacity:0}}
+#intro h1{font-size:clamp(30px,8vw,54px);margin:0 0 8px}
+#intro p{color:#c8d7e9;line-height:1.65;margin:0 auto 18px}
+#startBtn{font-size:15px;padding:14px 22px;background:var(--accent)}
+#help,#missionSelect{position:fixed;inset:0;z-index:30;background:rgba(2,6,23,.76);display:none;align-items:center;justify-content:center;padding:16px;touch-action:auto}
+.sheet{max-width:540px;width:100%;padding:18px;line-height:1.55}
+.sheet h2{margin:0 0 10px}
+.sheet p{margin:8px 0;color:#c9d6e6}
+.missionBtn{width:100%;text-align:left;margin-top:8px;padding:13px 14px}
+.missionBtn strong{display:block;font-size:14px}
+.missionBtn span{display:block;font-size:11px;color:#a9b7ca;margin-top:3px}
+#badge{display:inline-block;padding:2px 7px;border:1px solid rgba(125,211,252,.35);border-radius:999px;font-size:9px;color:#bfeaff;margin-left:5px}
+@media(max-width:620px){
+  #controls{grid-template-columns:repeat(3,1fr)}
+  #actions{grid-template-columns:1.25fr 1fr 1fr}
+  button{font-size:11px;padding:9px 5px}
+  #mission{max-width:69vw}
+}
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div class="top">
+    <div id="mission" class="card">
+      <b id="missionTitle">TUTORIAL：オリオン座</b>
+      <span id="badge">REAL CONSTELLATION</span>
+      <div class="small" id="missionText">本物の星座を、地球から見た形に並べよう。</div>
+    </div>
+    <div id="score" class="card"><small>MATCH</small><span id="scoreNum">0%</span></div>
+  </div>
+
+  <div id="targetOverlay"><svg id="targetSvg"></svg></div>
+
+  <div class="bottom">
+    <div id="selected" class="card">
+      <div>
+        <div class="name" id="starName">星を選択</div>
+        <div class="detail" id="starInfo">色・等級・座標がここに表示されます</div>
+      </div>
+      <div style="font-size:10px;color:var(--sub);text-align:right">背景ドラッグ：回転<br>ピンチ：ズーム</div>
+    </div>
+
+    <div id="controls" class="card">
+      <button class="secondary" data-move="x-">X −</button>
+      <button class="secondary" data-move="x+">X ＋</button>
+      <button class="secondary" data-move="y-">Y −</button>
+      <button class="secondary" data-move="y+">Y ＋</button>
+      <button class="secondary" data-move="z-">Z −</button>
+      <button class="secondary" data-move="z+">Z ＋</button>
+    </div>
+
+    <div id="actions" class="card">
+      <button id="viewBtn" class="accent">🌍 地球から見る</button>
+      <button id="missionBtn" class="secondary">⭐ 星座変更</button>
+      <button id="hintBtn" class="secondary">✨ ヒント</button>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<div id="intro">
+  <div class="stars"></div>
+  <div id="introContent">
+    <span id="rocket">🚀</span>
+    <h1>宇宙星座計画</h1>
+    <p>ロケットで宇宙へ。星を3Dで動かし、<b>地球から見たときだけ</b>本物の星座になるよう配置せよ。</p>
+    <button id="startBtn">点火して宇宙へ</button>
+  </div>
+</div>
+
+<div id="help">
+  <div class="sheet card">
+    <h2>チュートリアル：オリオン座</h2>
+    <p>星はそれぞれ明るさと色が違います。<b>等級が小さいほど明るく</b>、色は星の表面温度の違いをイメージしています。</p>
+    <p>① 星をタップして選択<br>② XYZ方向に移動<br>③ 「地球から見る」で投影を確認<br>④ お手本の形に近づけてMATCH 85%以上を目指そう</p>
+    <button id="closeHelp" class="accent" style="width:100%">はじめる</button>
+  </div>
+</div>
+
+<div id="missionSelect">
+  <div class="sheet card">
+    <h2>星座を選ぶ</h2>
+    <button class="missionBtn secondary" data-mission="orion">
+      <strong>♐ オリオン座</strong><span>ベテルギウス、リゲル、三つ星など7個の主な星</span>
+    </button>
+    <button class="missionBtn secondary" data-mission="cygnus">
+      <strong>🦢 はくちょう座</strong><span>デネブを頂点にした「北十字」の形</span>
+    </button>
+    <button id="closeMission" class="secondary" style="width:100%;margin-top:10px">閉じる</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+  const game=document.getElementById('game');
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x020617);
+  scene.fog=new THREE.FogExp2(0x020617,.011);
+
+  const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,300);
+  camera.position.set(12,8,-10);
+
+  const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  game.appendChild(renderer.domElement);
+
+  const controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=.08; controls.target.set(0,0,13);
+  controls.minDistance=5; controls.maxDistance=55;
+
+  // Background starfield
+  const bgPos=[];
+  for(let i=0;i<1200;i++){
+    const r=85+Math.random()*110,a=Math.random()*Math.PI*2,b=Math.acos(2*Math.random()-1);
+    bgPos.push(r*Math.sin(b)*Math.cos(a),r*Math.sin(b)*Math.sin(a),r*Math.cos(b));
+  }
+  const bgGeo=new THREE.BufferGeometry();
+  bgGeo.setAttribute('position',new THREE.Float32BufferAttribute(bgPos,3));
+  scene.add(new THREE.Points(bgGeo,new THREE.PointsMaterial({color:0xffffff,size:.2,transparent:true,opacity:.72})));
+
+  // Earth
+  const earth=new THREE.Mesh(new THREE.SphereGeometry(1.55,48,32),new THREE.MeshPhongMaterial({color:0x2463a8,emissive:0x071421,shininess:35}));
+  scene.add(earth);
+  const cloud=new THREE.Mesh(new THREE.SphereGeometry(1.59,32,24),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.08,wireframe:true}));
+  scene.add(cloud);
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(1.8,32,24),new THREE.MeshBasicMaterial({color:0x6cc8ff,transparent:true,opacity:.08,side:THREE.BackSide}));
+  scene.add(glow);
+  const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(-8,7,-6); scene.add(dl);
+  scene.add(new THREE.AmbientLight(0x7aa7d9,.55));
+
+  const missions={
+    orion:{
+      title:'TUTORIAL：オリオン座',
+      text:'ベテルギウスとリゲル、三つ星を地球から見た形に並べよう。',
+      stars:[
+        {name:'ベテルギウス',mag:0.5,color:0xff9b62,temp:'橙〜赤',target:[-.31,.28],start:[-4.6,3.2,18]},
+        {name:'ベラトリックス',mag:1.6,color:0xbad9ff,temp:'青白',target:[.27,.25],start:[4.1,2.7,15]},
+        {name:'アルニタク',mag:1.8,color:0xaed2ff,temp:'青白',target:[-.15,.02],start:[-4.2,-.8,13]},
+        {name:'アルニラム',mag:1.7,color:0xc6ddff,temp:'青白',target:[0,0],start:[2.4,1.9,23]},
+        {name:'ミンタカ',mag:2.2,color:0xb8d5ff,temp:'青白',target:[.16,-.01],start:[4.5,-1.8,19]},
+        {name:'サイフ',mag:2.1,color:0xb4d5ff,temp:'青白',target:[-.24,-.31],start:[-3.7,-3.1,22]},
+        {name:'リゲル',mag:0.1,color:0xa9d6ff,temp:'青白',target:[.28,-.30],start:[3.9,-2.6,14]}
+      ],
+      edges:[[0,2],[1,4],[2,3],[3,4],[2,5],[4,6]]
+    },
+    cygnus:{
+      title:'MISSION 02：はくちょう座',
+      text:'デネブを頂点に、夜空の「北十字」を完成させよう。',
+      stars:[
+        {name:'デネブ',mag:1.3,color:0xc8e2ff,temp:'青白',target:[0,.36],start:[-2.8,4.0,17]},
+        {name:'サドル',mag:2.2,color:0xfff1c2,temp:'黄白',target:[0,.06],start:[3.0,1.4,21]},
+        {name:'アルビレオ',mag:3.1,color:0xffc36f,temp:'橙',target:[0,-.38],start:[-1.8,-3.7,14]},
+        {name:'ギェナー',mag:2.5,color:0xffa86b,temp:'橙',target:[-.29,.02],start:[-4.2,.2,23]},
+        {name:'デルタ・キグニ',mag:2.9,color:0xc1dcff,temp:'青白',target:[.30,.03],start:[4.0,-.4,16]}
+      ],
+      edges:[[0,1],[1,2],[3,1],[1,4]]
+    }
+  };
+
+  let currentKey='orion';
+  let current=missions[currentKey];
+  const starGroup=new THREE.Group(); scene.add(starGroup);
+  let stars=[],startPos=[],selected=null,earthView=false;
+  const saved={pos:new THREE.Vector3(),target:new THREE.Vector3()};
+
+  function makeGlowTexture(){
+    const c=document.createElement('canvas'); c.width=c.height=128; const ctx=c.getContext('2d');
+    const g=ctx.createRadialGradient(64,64,0,64,64,64);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(.14,'rgba(255,255,255,.95)');
+    g.addColorStop(.35,'rgba(255,255,255,.45)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,128,128);
+    return new THREE.CanvasTexture(c);
+  }
+  const glowTex=makeGlowTexture();
+
+  function starSizeFromMag(mag){
+    // brighter stars (lower magnitude) become larger
+    return Math.max(.18, .43 - mag*.055);
+  }
+
+  function loadMission(key){
+    currentKey=key; current=missions[key];
+    selected=null;
+    while(starGroup.children.length) starGroup.remove(starGroup.children[0]);
+    stars=[]; startPos=[];
+
+    current.stars.forEach((s,i)=>{
+      const size=starSizeFromMag(s.mag);
+      const m=new THREE.Mesh(
+        new THREE.SphereGeometry(size,24,18),
+        new THREE.MeshStandardMaterial({color:s.color,emissive:s.color,emissiveIntensity:1.0,roughness:.2})
+      );
+      m.position.set(...s.start);
+      m.userData={index:i,...s,baseScale:1};
+      const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:s.color,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+      const haloScale=1.5 + (3.2-Math.min(3.2,s.mag))*.55;
+      halo.scale.set(haloScale,haloScale,1);
+      m.add(halo);
+      starGroup.add(m); stars.push(m); startPos.push(m.position.clone());
+    });
+
+    document.getElementById('missionTitle').textContent=current.title;
+    document.getElementById('missionText').textContent=current.text;
+    document.getElementById('starName').textContent='星を選択';
+    document.getElementById('starInfo').textContent='色・等級・座標がここに表示されます';
+    evaluate(false);
+    if(earthView) drawTarget();
+  }
+
+  const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+
+  function selectStar(m){
+    if(selected) selected.scale.setScalar(1);
+    selected=m; selected.scale.setScalar(1.5);
+    updateInfo();
+  }
+
+  function updateInfo(){
+    if(!selected)return;
+    const p=selected.position,d=selected.userData;
+    document.getElementById('starName').textContent=d.name;
+    document.getElementById('starInfo').textContent=
+      `見かけの等級 ${d.mag.toFixed(1)} / ${d.temp} / X ${p.x.toFixed(1)} Y ${p.y.toFixed(1)} Z ${p.z.toFixed(1)}`;
+  }
+
+  renderer.domElement.addEventListener('pointerup',e=>{
+    if(earthView)return;
+    const r=renderer.domElement.getBoundingClientRect();
+    pointer.x=((e.clientX-r.left)/r.width)*2-1;
+    pointer.y=-((e.clientY-r.top)/r.height)*2+1;
+    raycaster.setFromCamera(pointer,camera);
+    const hits=raycaster.intersectObjects(stars,false);
+    if(hits.length)selectStar(hits[0].object);
+  });
+
+  document.querySelectorAll('[data-move]').forEach(btn=>btn.addEventListener('click',()=>{
+    if(!selected){toast('先に星をタップして選んでね');return}
+    const [axis,sgn]=btn.dataset.move.split('');
+    const step=.55*(sgn==='+'?1:-1);
+    selected.position[axis]+=step;
+    if(axis==='z')selected.position.z=Math.max(5,Math.min(35,selected.position.z));
+    updateInfo(); evaluate(false);
+  }));
+
+  function project(m){const p=m.position;return [p.x/p.z,p.y/p.z]}
+  function score(){
+    let err=0;
+    stars.forEach((s,i)=>{
+      const p=project(s),t=current.stars[i].target;
+      err+=Math.hypot(p[0]-t[0],p[1]-t[1]);
+    });
+    const avg=err/stars.length;
+    return Math.max(0,Math.round(100*(1-avg/.48)));
+  }
+
+  function evaluate(showWin=true){
+    const s=score();
+    document.getElementById('scoreNum').textContent=s+'%';
+    if(showWin && s>=85){
+      toast(`✨ MISSION COMPLETE ✨\n${current.title.replace('TUTORIAL：','').replace('MISSION 02：','')} 完成！`,2400);
+    }
+    return s;
+  }
+
+  function setEarthView(on){
+    earthView=on;
+    const overlay=document.getElementById('targetOverlay'),viewBtn=document.getElementById('viewBtn');
+    if(on){
+      saved.pos.copy(camera.position); saved.target.copy(controls.target);
+      camera.position.set(0,0,.2); camera.lookAt(0,0,14);
+      controls.enabled=false; earth.visible=false; cloud.visible=false; glow.visible=false;
+      overlay.style.display='block'; viewBtn.textContent='🛰️ 宇宙から見る';
+      drawTarget(); evaluate(true);
+    }else{
+      camera.position.copy(saved.pos); controls.target.copy(saved.target);
+      controls.enabled=true; earth.visible=true; cloud.visible=true; glow.visible=true;
+      overlay.style.display='none'; viewBtn.textContent='🌍 地球から見る';
+    }
+  }
+  document.getElementById('viewBtn').addEventListener('click',()=>setEarthView(!earthView));
+
+  function drawTarget(){
+    const svg=document.getElementById('targetSvg'),w=innerWidth,h=innerHeight;
+    svg.setAttribute('viewBox',`0 0 ${w} ${h}`); svg.innerHTML='';
+    const scale=Math.min(w,h)*.92;
+    const pts=current.stars.map(s=>[w/2+s.target[0]*scale,h/2-s.target[1]*scale]);
+
+    current.edges.forEach(e=>{
+      const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+      l.setAttribute('x1',pts[e[0]][0]); l.setAttribute('y1',pts[e[0]][1]);
+      l.setAttribute('x2',pts[e[1]][0]); l.setAttribute('y2',pts[e[1]][1]);
+      l.setAttribute('stroke','rgba(125,211,252,.50)'); l.setAttribute('stroke-width','3');
+      l.setAttribute('stroke-dasharray','7 7'); svg.appendChild(l);
+    });
+
+    pts.forEach((p,i)=>{
+      const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',p[0]); c.setAttribute('cy',p[1]);
+      c.setAttribute('r',String(9+Math.max(0,2-current.stars[i].mag)*2.5));
+      c.setAttribute('fill','none'); c.setAttribute('stroke','rgba(255,255,255,.58)');
+      c.setAttribute('stroke-width','2'); svg.appendChild(c);
+
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',p[0]+10); t.setAttribute('y',p[1]-10);
+      t.setAttribute('fill','rgba(255,255,255,.72)'); t.setAttribute('font-size','11');
+      t.textContent=current.stars[i].name; svg.appendChild(t);
+    });
+  }
+
+  document.getElementById('hintBtn').addEventListener('click',()=>{
+    if(!selected){toast('ヒントを使う星を選んでね');return}
+    const i=selected.userData.index,z=selected.position.z,t=current.stars[i].target;
+    selected.position.x=t[0]*z; selected.position.y=t[1]*z;
+    updateInfo(); evaluate(false);
+    toast(`${selected.userData.name} を正しい見え方に近づけたよ ✨`);
+  });
+
+  document.getElementById('missionBtn').addEventListener('click',()=>document.getElementById('missionSelect').style.display='flex');
+  document.getElementById('closeMission').addEventListener('click',()=>document.getElementById('missionSelect').style.display='none');
+  document.querySelectorAll('[data-mission]').forEach(b=>b.addEventListener('click',()=>{
+    const key=b.dataset.mission;
+    if(earthView)setEarthView(false);
+    loadMission(key);
+    document.getElementById('missionSelect').style.display='none';
+    toast(key==='orion'?'オリオン座へ出発！':'はくちょう座へ出発！');
+  }));
+
+  let toastTimer;
+  function toast(msg,ms=1500){
+    const t=document.getElementById('toast'); t.innerText=msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),ms);
+  }
+
+  document.getElementById('startBtn').addEventListener('click',()=>{
+    const intro=document.getElementById('intro'); intro.classList.add('launch');
+    setTimeout(()=>{intro.style.display='none';document.getElementById('help').style.display='flex'},2000);
+  });
+  document.getElementById('closeHelp').addEventListener('click',()=>document.getElementById('help').style.display='none');
+
+  function resize(){
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight); if(earthView)drawTarget();
+  }
+  addEventListener('resize',resize);
+
+  let t=0;
+  function animate(){
+    requestAnimationFrame(animate); t+=.01;
+    earth.rotation.y+=.0015; cloud.rotation.y+=.0019;
+    stars.forEach((s,i)=>{if(s!==selected)s.scale.setScalar(1+Math.sin(t*2+i)*.045)});
+    controls.update(); renderer.render(scene,camera);
+  }
+
+  loadMission('orion');
+  animate();
+})();
+</script>
+</body>
+</html>
